@@ -1,0 +1,16 @@
+For installing 4store on ubuntu see:
+http://patricklogan.blogspot.com/2011/03/building-4store-on-ubuntu-1010.html
+
+Create a new 4store knowledgebase:
+ 4s-backend-setup sample
+
+Start the knowledgebase server as a daemon:
+4s-backend sample
+
+Start a sparql endpoint http server for the knowledgebase:
+4s-httpd -p 8080 -D sample
+
+-D prevents the http server from daemonizing in order to see
+messages interactively.
+
+Status of the (empty) KB is now at http://localhost:8080/status/

@@ -10,8 +10,11 @@
 		 :puri
 		 :fare-matcher
 		 :cl-rdfxml
-		 :log5)
+		 :log5
+		 :fiveam)
     :serial t
     :components ((:file "package")
 		 (:file "util")
-		 (:file "cl4store")))
+		 (:file "sparql")
+		 (:file "cl4store")
+		 (:file "test")))

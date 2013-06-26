@@ -15,6 +15,11 @@
            delete-graph
 	   *4store-server*
 	   *graph*
+	   parse-literal
+	   render-literal
+	   make-uri
+	   define-uri-prefix
+	   get-uri-prefix
            ;; Subject to deprecation
            ;; - these may not belong here.
            sparql-server-status-request))

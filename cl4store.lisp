@@ -1,5 +1,6 @@
 (in-package :4store)
 
+(defdynvar *backend* :bigdata)
 (defdynvar *graph* nil "Knowledge base graph")
 (defdynvar *4store-server* "http://localhost:8080" "4store host address")
 
@@ -10,6 +11,7 @@
 
 (defun 4store-request (uri &key
 			 (method :get)
+			 (accept "*/*")
 			 parameters
 			 content
 			 (content-type "application/x-www-form-urlencoded")
@@ -20,6 +22,7 @@
     (print `(http-request ,uri
 		  :method ,method
 		  :parameters ,parameters
+		  :accept ,accept
 		  :content ,content
 		  :content-type ,content-type
 		  :additional-headers ,additional-headers))
@@ -27,14 +30,13 @@
 	(http-request uri
 		      :method method
 		      :parameters parameters
+		      :accept accept
 		      :content content
 		      :content-type content-type
 		      :additional-headers additional-headers)
       (if (not (equalp status-code 200))
 	  (error request-result))
       request-result)))
-
-
 
 (defun sparql-server-put-data-request (filepath &optional
 						  (graphname *graph*)
@@ -61,6 +63,13 @@
 If all is well, the return code will be 200 (for OK)."
   (nth-value 1 (4store-request (concatenate 'string server-url "status"))))
 
+#+bigdata
+(defun sparql-server-status-request (&optional (server-url *4store-server*))
+  "Returns the numeric HTTP status code from the server.
+If all is well, the return code will be 200 (for OK)."
+  (nth-value 1 (4store-request (concatenate 'string server-url "status"))))
+
+
 (defun select-rdfs-classes (&optional (server-url *4store-server*))
   "Select all the RDFS classses in the knowledgebase. Return the multiple values from the query POSTed to the knowledgebase's sparql http end-point. The first value is the body of the response in the sparql query results XML format."
   (4store-request (format nil "~A/sparql/" server-url)
@@ -80,6 +89,13 @@ If all is well, the return code will be 200 (for OK)."
    (concatenate 'string server-url "/sparql/")
    :parameters `(("query" . ,query)                      
 		 ("output" . "text"))))
+
+#+bigdata(defun sparql-query (query &optional
+			     (server-url *4store-server*))
+  (4store-request 
+   (concatenate 'string server-url "/sparql")
+   :parameters `(("query" . ,query))
+   :accept "text/tab-separated-values"))
 
 (defun tsv-to-lists (tsv)
   "Convert a 4store TSV result string to a list of lisp lists"
@@ -120,7 +136,7 @@ If all is well, the return code will be 200 (for OK)."
 				   ""))
 	  (query (format nil "SELECT DISTINCT ~{?~A ~} WHERE { GRAPH ~A { ~{~{~A ~}~^.~%~}~A } }"
 			 return-vars
-			 graph
+			 (render-literal graph)
 			 query-params
 			 optional-parameters)))
      (sparql-query query server-url))))
@@ -165,19 +181,20 @@ If all is well, the return code will be 200 (for OK)."
   containing subject, predicate and object."
   (sparql-update 
    (with-output-to-string
-                   (outstr)
-                   (format outstr "INSERT DATA { GRAPH ~A { " graph)
-                   (mapcar #'(lambda (triple)
-                               (format outstr "~A ~A ~A . "
-                                       (first triple)
-                                       (second triple)
-                                       (third triple)))
-                           triples)
-                   (format outstr "} } ")
-                   outstr)
+       (outstr)
+     (format outstr "INSERT DATA { GRAPH ~A { " (render-literal graph))
+     (mapcar #'(lambda (triple)
+		 (format outstr "~A ~A ~A . "
+			 (render-literal (first triple))
+			 (render-literal (second triple))
+			 (render-literal (third triple))))
+	     triples)
+     (format outstr "} } ")
+     outstr)
    :post
    server-url))
 
+		  
 (defun delete-triples (triples &optional (graph *graph*)
 				 (server-url *4store-server*))
   "Remove the supplied set of triples from the graph.
@@ -186,12 +203,12 @@ If all is well, the return code will be 200 (for OK)."
   (sparql-update 
                  (with-output-to-string
                    (outstr)
-                   (format outstr "DELETE DATA { GRAPH ~A { " graph)
+                   (format outstr "DELETE DATA { GRAPH ~A { " (render-literal graph))
                    (mapcar #'(lambda (triple)
                                (format outstr "~A ~A ~A . "
-                                       (first triple)
-                                       (second triple)
-                                       (third triple)))
+                                       (render-literal (first triple))
+                                       (render-literal (second triple))
+                                       (render-literal (third triple))))
                            triples)
                    (format outstr "} } ")
                    outstr)
