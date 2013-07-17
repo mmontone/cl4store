@@ -105,3 +105,17 @@
 	   parsed-p)
 	 (parse-boolean-literal literal))	   
 	(t literal)))))
+
+(defun uri-reader (stream sub-char numarg)
+  (declare (ignore sub-char numarg))
+  (let ((chars
+	 (loop for char = (read-char stream)
+	    while (not (equalp char #\>))
+	    collect char)))
+    (puri:uri (coerce chars 'string))))
+
+(set-dispatch-macro-character
+  #\# #\< #'uri-reader)
+
+;; Example
+;; #<http://www.google.com>
