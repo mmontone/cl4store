@@ -106,16 +106,51 @@
 	 (parse-boolean-literal literal))	   
 	(t literal)))))
 
+(defvar *prefixes* (make-hash-table :test #'equalp))
+
+(defmacro define-prefix (prefix value &optional documentation)
+  (declare (ignore documentation))
+  `(setf (gethash (symbol-name ',prefix) *prefixes*) ,value))
+
+(define-prefix rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+(define-prefix xsd "http://www.w3.org/2001/XMLSchema#")
+(define-prefix ex "http://www.franz.com/things#")  
+(define-prefix rdfs "http://www.w3.org/2000/01/rdf-schema#")  
+(define-prefix fn "http://www.w3.org/2005/xpath-functions#") 
+(define-prefix err "http://www.w3.org/2005/xqt-errors#")  
+(define-prefix owl "http://www.w3.org/2002/07/owl#")  
+(define-prefix xs "http://www.w3.org/2001/XMLSchema#")
+
+(defun display-prefixes ()
+  (loop for prefix being the hash-keys of *prefixes*
+       using (hash-value value)
+       do (format t "~A => ~A~%" prefix value)))
+
+(defun prefix-value (prefix)
+  (gethash prefix *prefixes*))
+
+(defun parse-uri (uri)
+  (let ((split-uri
+	 (split-sequence:split-sequence #\: uri)))
+    (if (and (first split-uri)
+	     (prefix-value (first split-uri)))
+	(puri:parse-uri
+	 (concatenate 'string
+		      (prefix-value (first split-uri))
+		      (apply #'concatenate 'string (rest split-uri))))
+	(puri:parse-uri uri))))	     
+
 (defun uri-reader (stream sub-char numarg)
   (declare (ignore sub-char numarg))
   (let ((chars
 	 (loop for char = (read-char stream)
 	    while (not (equalp char #\>))
 	    collect char)))
-    (puri:uri (coerce chars 'string))))
+    (parse-uri (coerce chars 'string))))
 
 (set-dispatch-macro-character
   #\# #\< #'uri-reader)
 
 ;; Example
 ;; #<http://www.google.com>
+;; #<rdf:type>
