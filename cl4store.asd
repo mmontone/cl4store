@@ -11,7 +11,8 @@
 		 :fare-matcher
 		 :cl-rdfxml
 		 :log5
-		 :fiveam)
+		 :fiveam
+		 :parser-combinators)
     :serial t
     :components ((:file "package")
 		 (:file "util")

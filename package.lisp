@@ -1,5 +1,5 @@
 (defpackage :4store
-  (:use :cl :drakma)
+  (:use :cl :drakma :parser-combinators)
   (:export sparql-query
 	   sparql-query*
 	   with-4store-server

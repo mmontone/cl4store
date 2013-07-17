@@ -1,65 +1,19 @@
 (in-package :4store)
 
-(define-condition parse-failure (simple-condition)
-  ())
-
-(defun parse-failure (reason &rest args)
-  (error 'parse-failure
-	 :format-control reason
-	 :format-arguments args))
-
-;; (defun many (parser input)
-
-;; (defun or-else (parsers input)
-;;   (let ((input-copy (alexandria:copy-sequence 'cons input)))
-;;     (handler-case
-;; 	(funcall parser input-copy)
-;;       (
-
-;; (defun or-parse (&rest parsers)
- 
+;; SPARQL toplevel
 
 (defun sparql-compile (sparql)
-  (let ((sparql-input (alexandria:copy-sequence 'cons sparql)))
-    (ecase (first sparql-input)
-      (:select (sparql-compile-select sparql-input)))))
+  (let ((parsed
+	 (parse-sequence* (sparql-select)
+			  sparql)))
+    (if (not parsed)
+	(error "Error parsing sparql")
+	(render-sparql parsed))))
 
-(defun sparql-compile-select (input)
-  (when (not (equalp (first input) :select))
-    (parse-failure "No :select keyword"))
-  (pop input)
-  (let ((vars (parse-select-vars input))
-	(where (parse-select-where input))
-	(options (parse-select-options input)))
-    (with-output-to-string (s)
-      (format s "SELECT ")
-      (render-select-vars vars s)
-      (format s " ")
-      (render-select-where where s)
-      (when options
-	(format s " ")
-	(render-select-options input s)))))
+(defmacro sparql (sparql)
+  (sparql-compile sparql))
 
-(defun parse-select-where (input)
-  (when (equalp (first input) :where)
-    (parse-failure "No :where keyword"))
-  (let ((where-body (rest input)))
-    (if (listp (first where-body))
-	(parse-where-graph (first where-body))
-	(parse-where-body (rest input)))))
-
-(defun parse-where-graph (input)
-  (when (not (equalp ))
-
-(defun parse-select-options (input)
-  )
-
-(defun parse-var (input)
-  (let ((var-string (symbol-name input)))
-    (mdo
-      (<- prefix (parse-string (choice #\? #\$) var-string))
-      (<- var-name (many1* #'alphanum?))
-      (result (list :var var-name)))))
+;; SPARQL parsing
 
 (def-cached-parser sparql-var
   "Parser: return a token satisfying a predicate."
@@ -100,7 +54,7 @@
 		 (sparql-offset))))
    (list :select (apply #'list :vars vars)
 	 where
-	 options)))
+	 (list :options options))))
 
 (defun sparql-order-by ()
   (seq-list?
@@ -120,20 +74,78 @@
 (defun sparql-where ()
   (seq-list?
    :where
-   (sparql-triples)))
+   (where-body)))
 
-(defun sparql-triples ()
-  (many1* (sparql-triple)))
+(defun where-body ()
+  (many1*
+   (choices
+    (sparql-where-graph)
+    (where-triple))))
+
+(defun where-triple ()
+  (choices
+   (sparql-union)
+   (sparql-triple)))
+
+(def-cached-arg-parser transform (predicate)
+  "Parser: return a token satisfying a predicate."
+  #'(lambda (inp)
+      (typecase inp
+        (end-context (constantly nil))
+        (parser-combinators::context
+	 (let ((result (funcall predicate (parser-combinators::context-peek inp))))
+           (if result
+               (let ((closure-value
+                      (make-instance 'parser-combinators::parser-possibility
+                                     :tree result :suffix (parser-combinators::context-next inp))))
+                 #'(lambda ()
+                     (when closure-value
+                       (prog1
+                           closure-value
+                         (setf closure-value nil)))))
+               (constantly nil)))))))
 
 (defun sparql-triple ()
-  (named-seq?
-   '[
-   (<- x (triple-subject))
-   (<- y (triple-predicate))
-   (<- z (triple-object))
-   ']
-   (list :triple x y z)
-   ))
+  (transform
+   (lambda (triple)
+     (and (listp triple)
+	  (parse-sequence*
+	   (named-seq?
+	    (<- x (triple-subject))
+	    (<- y (triple-predicate))
+	    (<- z (triple-object))
+	    (list :triple x y z))
+	   triple)))))
+
+(defun sparql-union ()
+  (transform
+   (lambda (list)
+     (and (listp list)
+	  (parse-sequence*
+	   (seq-list?
+	    :union
+	    (triples-block)
+	    (triples-block))
+	   list)))))
+
+(defun sparql-where-graph ()
+  (transform
+   (lambda (list)
+     (and (listp list)
+	  (parse-sequence*
+	   (seq-list?
+	    :graph
+	    (item)
+	    (many1* (where-triple)))
+	   list)))))
+
+(defun triples-block ()
+  (transform
+   (lambda (list)
+     (and (listp list)
+	  (parse-sequence*
+	   (many1* (sparql-triple))
+	   list)))))
 
 (defun triple-subject ()
   (choice1 (sparql-var)
@@ -153,58 +165,99 @@
 	     (<- x (item))
 	     (result (list :eval x)))))
 
-(defun parse-select-vars (input)
-  (let (token vars)
-    (setf token (pop input))
-    (loop while (and input (not (equalp token :where)))
-	 do (progn
-	      (push token vars)
-	      (setf token (pop input))))
-    (cond
-      ((not (equalp token :where))
-       (parse-failure ":where not found"))
-      ((null vars)
-       (parse-failure "Selecting no vars"))
-      (t
-       (progn
-	 (push token input)
-	 (mapcar #'parse-var vars))))))
+;; SPARQL rendering
 
-(defun render-select-vars (vars out)
-  (format out "~A" vars))
+(defun render-sparql (sparql)
+  (let ((expanded (reduce-strings (expand sparql))))
+    `(strcat (list ,@expanded))))
 
-(defun render-select-where (where out)
-  (format out "WHERE { ~A }" where))
+(defun reduce-strings (list)
+  "Join adjacent strings in a list, leave other values intact."
+  (let ((accum ())
+        (span ""))
+    (dolist (part list)
+      (cond ((stringp part) (setf span (concatenate 'string span part)))
+            (t (when (not (string= "" span))
+                 (push span accum)
+                 (setf span ""))
+               (push part accum))))
+    (if (not (string= "" span))
+        (push span accum))
+    (nreverse accum)))
 
-(defun render-select-options (options out)
-  (format out " OPTIONS ~A" options))
+(defun strcat (args)
+  "Concatenate a list of strings into a single one."
+  (let ((result (make-string (reduce #'+ args :initial-value 0 :key 'length))))
+    (loop :for pos = 0 :then (+ pos (length arg))
+          :for arg :in args
+          :do (replace result arg :start1 pos))
+    result))
 
-(defun parse-var (input)
-  (let ((var (symbol-name input)))
-    (let ((prefix (char var 0)))
-      (if (not (or (equalp prefix #\?)
-		   (equalp prefix #\$)))
-	  (parse-failure "Invalid variable ~A" input)
-					; else
-	  (list :var
-		(subseq var 1 (length var)))))))  
+(defun expand (term)
+  (expand-term (first term) term))
 
-;; (sparql-select user prop val
-;; 	       :where ?belonging (property "source") ?user
-;; 	              ?belonging (property "type") "belonging"
-;; 		      ?belonging (property "target") group-uri
-;; 		      ?user (property type) "user"
-;; 		      ?user ?prop ?val)
+(defmethod expand-term ((type (eql :select)) term)
+  (cons "SELECT "
+	(loop for subterm in (rest term)
+	     appending (expand subterm))))
+	
+(defmethod expand-term ((type (eql :vars)) vars)
+  (let ((vars (rest vars)))
+    (loop for var in vars
+	 appending (expand var)
+	 appending (list " "))))
 
-;; (sparql SELECT ?user ?prop ?val
-;; 	WHERE {
-;; 	?belonging (property "source") ?user .
-;; 	?belonging (property "type") "belonging" .
-;; 	?belonging (property "target") group-uri .
-;; 	?user (property type) "user" .
-;; 	?user ?prop ?val . })
-	       
+(defmethod expand-term ((type (eql :var)) var)
+  (list (format nil "?~A" (second var))))
 
-;; (defmacro sparql-select (&rest return-vars &key where)
-;;   (4store:sparql-query* (list ,@(mapcar #'symbol-name return-vars))
-;; 			   
+(defmethod expand-term ((type (eql :eval)) form)
+  (list
+   `(4store::render-literal ,(second form))))
+
+(defmethod expand-term ((type (eql :where)) where)
+  (append (list "WHERE { ")
+	  (loop for term in (cadr where)
+	     appending (expand term))
+	  (list "}")))
+
+(defmethod expand-term ((type (eql :graph)) graph)
+  (append
+   (list "GRAPH ")
+   (list `(render-literal ,(second graph)))
+   (list " {")
+   (loop for term in (caddr graph)
+      appending (expand term))
+   (list "} ")))
+
+(defmethod expand-term ((type (eql :triple)) triple)
+  (append
+   (expand (second triple))
+   (list " ")
+   (expand (third triple))
+   (list " ")
+   (expand (nth 3 triple))
+   (list " .")))
+
+(defmethod expand-term ((type (eql :union)) union)
+  (append
+   (list "{")
+   (loop for term in (second union)
+	appending (expand term))
+   (list "} UNION {")
+   (loop for term in (third union)
+	appending (expand term))
+   (list "} ")))
+
+(defmethod expand-term ((type (eql :options)) options)
+  (loop for option in (cadr options)
+       appending (expand option)))
+
+(defmethod expand-term ((type (eql :order-by)) order-by)
+  (list " ORDER BY " `(render-literal ,(second order-by))))
+
+;; Example:
+;; (sparql
+;;  (:select ?z ?y
+;; 	  :where (:graph #<rdf:type> (:union ((?x ?y ?z))
+;; 					     ((?w ?z ?x))) (?x ?w ?w))
+;; 	  :order-by 22))
