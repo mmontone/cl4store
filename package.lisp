@@ -4,6 +4,7 @@
 	   sparql-query*
 	   sparql
 	   sparql-compile
+	   sparql-eval
 	   with-4store-server
 	   with-graph
 	   get-triples-list

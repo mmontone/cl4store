@@ -1,5 +1,7 @@
 (in-package :4store)
 
+(defvar *eval* nil)
+
 ;; SPARQL toplevel
 
 (defun sparql-compile (sparql)
@@ -12,6 +14,16 @@
 
 (defmacro sparql (sparql)
   (sparql-compile sparql))
+
+(defun sparql-eval (sparql)
+  (let ((parsed
+	 (parse-sequence* (sparql-select)
+			  sparql)))
+    (if (not parsed)
+	(error "Error parsing sparql")
+	(let ((*eval* t))
+	  (let ((expanded (reduce-strings (expand parsed))))
+	    (strcat expanded))))))
 
 ;; SPARQL parsing
 
@@ -273,8 +285,11 @@
   (list (format nil "?~A" (second var))))
 
 (defmethod expand-term ((type (eql :eval)) form)
-  (list
-   `(4store::render-literal ,(second form))))
+  (if *eval*
+      (list (4store::render-literal (second form)))
+      ;else
+      (list
+       `(4store::render-literal ,(second form)))))
 
 (defmethod expand-term ((type (eql :where)) where)
   (append (list "WHERE { ")
@@ -286,7 +301,9 @@
 (defmethod expand-term ((type (eql :graph)) graph)
   (append
    (list "GRAPH ")
-   (list `(render-literal ,(second graph)))
+   (if *eval*
+       (list (render-literal (second graph)))
+       (list `(render-literal ,(second graph))))
    (list " {")
    (loop for cons on (caddr graph)
       appending (expand (car cons))
@@ -366,10 +383,16 @@
 	  (list ")")))
 
 (defmethod expand-term ((type (eql :limit)) limit)
-  (list " LIMIT " `(prin1-to-string ,(second limit))))
+  (list " LIMIT "
+	(if *eval*
+	    (prin1-to-string (second limit))
+	    `(prin1-to-string ,(second limit)))))
 
 (defmethod expand-term ((type (eql :offset)) offset)
-  (list " OFFSET " `(prin1-to-string ,(second offset))))
+  (list " OFFSET "
+	(if *eval*
+	    (prin1-to-string (second offset))
+	    `(prin1-to-string ,(second offset)))))
 
 
 ;; Example:
