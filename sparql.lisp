@@ -209,7 +209,7 @@
 (defun triple-subject ()
   (choice1 (sparql-var)
 	   (mdo
-	     (<- x (item))
+	     (<- x (sat (alexandria:compose #'not #'keywordp)))
 	     (result (list :eval x)))))
 
 (defun triple-predicate ()
