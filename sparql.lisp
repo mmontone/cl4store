@@ -88,7 +88,8 @@
 (defun where-triple ()
   (choices
    (sparql-union)
-   (sparql-triple)))
+   (sparql-triple)
+   (sparql-optional)))
 
 (def-cached-arg-parser transform (predicate)
   "Parser: return a token satisfying a predicate."
@@ -129,6 +130,16 @@
 	    :union
 	    (triples-block)
 	    (triples-block))
+	   list)))))
+
+(defun sparql-optional ()
+  (transform
+   (lambda (list)
+     (and (listp list)
+	  (parse-sequence*
+	   (seq-list?
+	    :optional
+	    (many1* (sparql-triple)))
 	   list)))))
 
 (defun sparql-where-graph ()
@@ -222,8 +233,9 @@
 
 (defmethod expand-term ((type (eql :where)) where)
   (append (list "WHERE { ")
-	  (loop for term in (cadr where)
-	     appending (expand term))
+	  (loop for cons on (cadr where)
+	     appending (expand (car cons))
+	     when (cdr cons) appending (list " . "))
 	  (list "}")))
 
 (defmethod expand-term ((type (eql :graph)) graph)
@@ -231,8 +243,9 @@
    (list "GRAPH ")
    (list `(render-literal ,(second graph)))
    (list " {")
-   (loop for term in (caddr graph)
-      appending (expand term))
+   (loop for cons on (caddr graph)
+      appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
    (list "} ")))
 
 (defmethod expand-term ((type (eql :triple)) triple)
@@ -241,18 +254,27 @@
    (list " ")
    (expand (third triple))
    (list " ")
-   (expand (nth 3 triple))
-   (list " .")))
+   (expand (nth 3 triple))))
 
 (defmethod expand-term ((type (eql :union)) union)
   (append
    (list "{")
-   (loop for term in (second union)
-	appending (expand term))
+   (loop for cons on (second union)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
    (list "} UNION {")
-   (loop for term in (third union)
-	appending (expand term))
+   (loop for cons on (third union)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
    (list "} ")))
+
+(defmethod expand-term ((type (eql :optional)) optional)
+  (append
+   (list "OPTIONAL {")
+   (loop for cons on (second optional)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
+   (list "}")))
 
 (defmethod expand-term ((type (eql :options)) options)
   (loop for option in (cadr options)
