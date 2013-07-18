@@ -85,10 +85,11 @@ If all is well, the return code will be 200 (for OK)."
 
 (defun sparql-query (query &optional
 			     (server-url *4store-server*))
-  (4store-request 
-   (concatenate 'string server-url "/sparql/")
-   :parameters `(("query" . ,query)                      
-		 ("output" . "text"))))
+  (tsv-to-lists
+   (4store-request 
+    (concatenate 'string server-url "/sparql/")
+    :parameters `(("query" . ,query)                      
+		  ("output" . "text")))))
 
 #+bigdata(defun sparql-query (query &optional
 			     (server-url *4store-server*))
@@ -130,8 +131,7 @@ If all is well, the return code will be 200 (for OK)."
   - optional-params: a list of optional query-triples. If one or more of the
   return-vars is optional, put the relevant query-triples here. If they can be
   satisfied, the resulting value will be returned; if not, NIL is returned."
-  (tsv-to-lists
-   (let* ((optional-parameters (if optional-params
+  (let* ((optional-parameters (if optional-params
 				   (format nil ".~% OPTIONAL { ~{~{~A ~}~^.~%~} } " optional-params)
 				   ""))
 	  (query (format nil "SELECT DISTINCT ~{?~A ~} WHERE { GRAPH ~A { ~{~{~A ~}~^.~%~}~A } }"
@@ -139,7 +139,7 @@ If all is well, the return code will be 200 (for OK)."
 			 (render-literal graph)
 			 query-params
 			 optional-parameters)))
-     (sparql-query query server-url))))
+     (sparql-query query server-url)))
 
 (defun get-triples-list (&optional (graph *graph*)
 			   (server-url *4store-server*))
@@ -154,7 +154,7 @@ If all is well, the return code will be 200 (for OK)."
    server-url))
 
 (defun get-graphs-list (&optional (server-url *4store-server*))
-  (tsv-to-list
+  (alexandria:flatten
    (sparql-query
     "SELECT DISTINCT ?g
      WHERE {
