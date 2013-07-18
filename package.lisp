@@ -2,6 +2,8 @@
   (:use :cl :drakma :parser-combinators)
   (:export sparql-query
 	   sparql-query*
+	   sparql
+	   sparql-compile
 	   with-4store-server
 	   with-graph
 	   get-triples-list
