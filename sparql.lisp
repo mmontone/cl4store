@@ -45,6 +45,7 @@
 (defun sparql-select ()
   (named-seq?
    :select
+   (<- distinct (choice :distinct (result nil)))
    (<- vars (many1* (sparql-var)))
    (<- where (sparql-where))
    (<- options
@@ -52,7 +53,9 @@
 	(choices (sparql-order-by)
 		 (sparql-limit)
 		 (sparql-offset))))
-   (list :select (apply #'list :vars vars)
+   (list :select
+	 distinct
+	 (apply #'list :vars vars)
 	 where
 	 (list :options options))))
 
@@ -197,9 +200,12 @@
   (expand-term (first term) term))
 
 (defmethod expand-term ((type (eql :select)) term)
-  (cons "SELECT "
-	(loop for subterm in (rest term)
-	     appending (expand subterm))))
+  (append
+   (list "SELECT ")
+   (list (or (and (cadr term) "DISTINCT ")
+	     ""))
+   (loop for subterm in (cddr term)
+      appending (expand subterm))))
 	
 (defmethod expand-term ((type (eql :vars)) vars)
   (let ((vars (rest vars)))
