@@ -104,7 +104,10 @@
   (choices
    (sparql-union)
    (sparql-triple)
-   (sparql-optional)))
+   (sparql-optional)
+   (sparql-filter-exists)
+   (sparql-filter-not-exists)
+   (sparql-minus)))
 
 (def-cached-arg-parser transform (predicate)
   "Parser: return a token satisfying a predicate."
@@ -156,6 +159,33 @@
 	    :optional
 	    (many1* (sparql-triple)))
 	   list)))))
+
+(defun sparql-filter-exists ()
+  (transform (lambda (list)
+	       (and (listp list)
+		    (parse-sequence*
+		     (seq-list?
+		      :filter-exists
+		      (many1* (sparql-triple)))
+		     list)))))
+
+(defun sparql-filter-not-exists ()
+  (transform (lambda (list)
+	       (and (listp list)
+		    (parse-sequence*
+		     (seq-list?
+		      :filter-not-exists
+		      (many1* (sparql-triple)))
+		     list)))))
+
+(defun sparql-minus ()
+  (transform (lambda (list)
+	       (and (listp list)
+		    (parse-sequence*
+		     (seq-list?
+		      :minus
+		      (many1* (sparql-triple)))
+		     list)))))
 
 (defun sparql-where-graph ()
   (transform
@@ -287,6 +317,30 @@
   (append
    (list "OPTIONAL {")
    (loop for cons on (second optional)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
+   (list "}")))
+
+(defmethod expand-term ((type (eql :filter-exists)) filter-exists)
+  (append
+   (list "FILTER EXISTS {")
+   (loop for cons on (second filter-exists)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
+   (list "}")))
+
+(defmethod expand-term ((type (eql :filter-not-exists)) filter-not-exists)
+  (append
+   (list "FILTER NOT EXISTS {")
+   (loop for cons on (second filter-not-exists)
+	appending (expand (car cons))
+	when (cdr cons) appending (list " . "))
+   (list "}")))
+
+(defmethod expand-term ((type (eql :minus)) minus)
+  (append
+   (list "MINUS {")
+   (loop for cons on (second minus)
 	appending (expand (car cons))
 	when (cdr cons) appending (list " . "))
    (list "}")))
