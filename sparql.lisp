@@ -15,8 +15,26 @@
 
 ;; SPARQL parsing
 
+(def-cached-arg-parser transform (transform)
+  "Parser: transform and return the result, when the transformation applies (not null)"
+  #'(lambda (inp)
+      (typecase inp
+        (end-context (constantly nil))
+        (parser-combinators::context
+	 (let ((result (funcall transform (parser-combinators::context-peek inp))))
+           (if result
+               (let ((closure-value
+                      (make-instance 'parser-combinators::parser-possibility
+                                     :tree result :suffix (parser-combinators::context-next inp))))
+                 #'(lambda ()
+                     (when closure-value
+                       (prog1
+                           closure-value
+                         (setf closure-value nil)))))
+               (constantly nil)))))))
+
 (def-cached-parser sparql-var
-  "Parser: return a token satisfying a predicate."
+  "Parser: parse a SPARQL variable."
   #'(lambda (inp)
       (typecase inp
         (end-context (constantly nil))
@@ -108,24 +126,6 @@
    (sparql-filter-exists)
    (sparql-filter-not-exists)
    (sparql-minus)))
-
-(def-cached-arg-parser transform (predicate)
-  "Parser: return a token satisfying a predicate."
-  #'(lambda (inp)
-      (typecase inp
-        (end-context (constantly nil))
-        (parser-combinators::context
-	 (let ((result (funcall predicate (parser-combinators::context-peek inp))))
-           (if result
-               (let ((closure-value
-                      (make-instance 'parser-combinators::parser-possibility
-                                     :tree result :suffix (parser-combinators::context-next inp))))
-                 #'(lambda ()
-                     (when closure-value
-                       (prog1
-                           closure-value
-                         (setf closure-value nil)))))
-               (constantly nil)))))))
 
 (defun sparql-triple ()
   (transform
