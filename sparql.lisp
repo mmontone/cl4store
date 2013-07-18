@@ -121,11 +121,11 @@
 (defun where-triple ()
   (choices
    (sparql-union)
-   (sparql-triple)
    (sparql-optional)
    (sparql-filter-exists)
    (sparql-filter-not-exists)
-   (sparql-minus)))
+   (sparql-minus)
+   (sparql-triple)))
 
 (defun sparql-triple ()
   (transform
