@@ -20,22 +20,11 @@
 (defun make-keyword (string)
   (intern (string-upcase string) :keyword))
 
-(defvar *uri-prefixes* (make-hash-table))
-
-(defmacro define-uri-prefix (name prefix &optional documentation)
-  (declare (ignore documentation))
-  `(setf (gethash (make-keyword ',name)
-		  *uri-prefixes*)
-	(puri:parse-uri ,prefix)))
-
-(defun get-uri-prefix (name)
-  (gethash (make-keyword name)
-	   *uri-prefixes*))
-
 (defun make-uri (prefix uri &rest args)
-  (puri:merge-uris
-   (apply #'format nil (cons uri args))
-   (get-uri-prefix prefix)))
+  (puri:parse-uri
+   (concatenate 'string
+		(get-uri-prefix prefix)
+		(apply #'format nil (cons uri args)))))
 
 (defun clean-literal (literal)
   (remove #\Return literal))
@@ -106,39 +95,41 @@
 	 (parse-boolean-literal literal))	   
 	(t literal)))))
 
-(defvar *prefixes* (make-hash-table :test #'equalp))
+(defvar *uri-prefixes* (make-hash-table :test #'equalp))
 
-(defmacro define-prefix (prefix value &optional documentation)
+(defmacro define-uri-prefix (uri-prefix value &optional documentation)
   (declare (ignore documentation))
-  `(setf (gethash (symbol-name ',prefix) *prefixes*) ,value))
+  `(setf (gethash (symbol-name ',uri-prefix) *uri-prefixes*) ,value))
 
-(define-prefix rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
-(define-prefix xsd "http://www.w3.org/2001/XMLSchema#")
-(define-prefix ex "http://www.franz.com/things#")  
-(define-prefix rdfs "http://www.w3.org/2000/01/rdf-schema#")  
-(define-prefix fn "http://www.w3.org/2005/xpath-functions#") 
-(define-prefix err "http://www.w3.org/2005/xqt-errors#")  
-(define-prefix owl "http://www.w3.org/2002/07/owl#")  
-(define-prefix xs "http://www.w3.org/2001/XMLSchema#")
+(define-uri-prefix rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+(define-uri-prefix xsd "http://www.w3.org/2001/XMLSchema#")
+(define-uri-prefix ex "http://www.franz.com/things#")  
+(define-uri-prefix rdfs "http://www.w3.org/2000/01/rdf-schema#")  
+(define-uri-prefix fn "http://www.w3.org/2005/xpath-functions#") 
+(define-uri-prefix err "http://www.w3.org/2005/xqt-errors#")  
+(define-uri-prefix owl "http://www.w3.org/2002/07/owl#")  
+(define-uri-prefix xs "http://www.w3.org/2001/XMLSchema#")
 
-(defun display-prefixes ()
-  (loop for prefix being the hash-keys of *prefixes*
+(defun display-uri-prefixes ()
+  (loop for uri-prefix being the hash-keys of *uri-prefixes*
        using (hash-value value)
-       do (format t "~A => ~A~%" prefix value)))
+       do (format t "~A => ~A~%" uri-prefix value)))
 
-(defun prefix-value (prefix)
-  (gethash prefix *prefixes*))
+(defun get-uri-prefix (uri-prefix)
+  (gethash (or (and (stringp uri-prefix) uri-prefix)
+	       (and (symbolp uri-prefix)
+		    (symbol-name uri-prefix))) *uri-prefixes*))
 
 (defun parse-uri (uri)
   (let ((split-uri
 	 (split-sequence:split-sequence #\: uri)))
     (if (and (first split-uri)
-	     (prefix-value (first split-uri)))
+	     (get-uri-prefix (first split-uri)))
 	(puri:parse-uri
 	 (concatenate 'string
-		      (prefix-value (first split-uri))
+		      (get-uri-prefix (first split-uri))
 		      (apply #'concatenate 'string (rest split-uri))))
-	(puri:parse-uri uri))))	     
+	(puri:parse-uri uri))))
 
 (defun uri-reader (stream sub-char numarg)
   (declare (ignore sub-char numarg))
