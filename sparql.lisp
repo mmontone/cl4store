@@ -76,7 +76,11 @@
   (named-seq?
    :select
    (<- distinct (choice :distinct (result nil)))
-   (<- vars (many1* (sparql-var)))
+   (<- vars (many1* (choice (mdo
+			      (<- everything (sat (lambda (x)
+						    (equalp (symbol-name x) "*"))))
+			      (result :everything))
+			    (sparql-var))))
    (<- where (sparql-where))
    (<- options
        (many* 
@@ -278,7 +282,9 @@
 (defmethod expand-term ((type (eql :vars)) vars)
   (let ((vars (rest vars)))
     (loop for var in vars
-	 appending (expand var)
+	 appending (if (equalp var :everything)
+		       (list "*")
+		       (expand var))
 	 appending (list " "))))
 
 (defmethod expand-term ((type (eql :var)) var)
