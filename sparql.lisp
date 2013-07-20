@@ -72,6 +72,12 @@
 				   closure-value
 				 (setf closure-value nil))))))))))))))
 
+(defun in-list (parser)
+  (transform
+   (lambda (x)
+     (and (listp x)
+	  (parse-sequence* parser x)))))
+
 (defun sparql-select ()
   (named-seq?
    :select
@@ -88,6 +94,27 @@
 		 (sparql-offset)
 		 (sparql-order-by))))
    (list :select
+	 distinct
+	 (apply #'list :vars vars)
+	 where
+	 (list :options options))))
+
+(defun sparql-subselect ()
+  (named-seq?
+   :select
+   (<- distinct (choice :distinct (result nil)))
+   (<- vars (many1* (choice (mdo
+			      (<- everything (sat (lambda (x)
+						    (equalp (symbol-name x) "*"))))
+			      (result :everything))
+			    (sparql-var))))
+   (<- where (sparql-where))
+   (<- options
+       (many* 
+	(choices (sparql-limit)
+		 (sparql-offset)
+		 (sparql-order-by))))
+   (list :subselect
 	 distinct
 	 (apply #'list :vars vars)
 	 where
@@ -132,6 +159,9 @@
   (many1*
    (choices
     (sparql-where-graph)
+    (delayed?
+     (in-list
+      (sparql-subselect)))
     (where-triple))))
 
 (defun where-triple ()
@@ -144,83 +174,56 @@
    (sparql-triple)))
 
 (defun sparql-triple ()
-  (transform
-   (lambda (triple)
-     (and (listp triple)
-	  (parse-sequence*
-	   (named-seq?
-	    (<- x (triple-subject))
-	    (<- y (triple-predicate))
-	    (<- z (triple-object))
-	    (list :triple x y z))
-	   triple)))))
+  (in-list
+   (named-seq?
+    (<- x (triple-subject))
+    (<- y (triple-predicate))
+    (<- z (triple-object))
+    (list :triple x y z))))   
 
 (defun sparql-union ()
-  (transform
-   (lambda (list)
-     (and (listp list)
-	  (parse-sequence*
-	   (seq-list?
-	    :union
-	    (triples-block)
-	    (triples-block))
-	   list)))))
+  (in-list
+   (seq-list?
+    :union
+    (triples-block)
+    (triples-block))))
 
 (defun sparql-optional ()
-  (transform
-   (lambda (list)
-     (and (listp list)
-	  (parse-sequence*
-	   (seq-list?
-	    :optional
-	    (many1* (sparql-triple)))
-	   list)))))
+  (in-list
+   (seq-list?
+    :optional
+    (many1* (sparql-triple)))))
 
 (defun sparql-filter-exists ()
-  (transform (lambda (list)
-	       (and (listp list)
-		    (parse-sequence*
-		     (seq-list?
-		      :filter-exists
-		      (many1* (sparql-triple)))
-		     list)))))
+  (in-list
+   (seq-list?
+    :filter-exists
+    (many1* (sparql-triple)))))
 
 (defun sparql-filter-not-exists ()
-  (transform (lambda (list)
-	       (and (listp list)
-		    (parse-sequence*
-		     (seq-list?
-		      :filter-not-exists
-		      (many1* (sparql-triple)))
-		     list)))))
+  (in-list
+   (seq-list?
+    :filter-not-exists
+    (many1* (sparql-triple)))))
 
 (defun sparql-minus ()
-  (transform (lambda (list)
-	       (and (listp list)
-		    (parse-sequence*
-		     (seq-list?
-		      :minus
-		      (many1* (sparql-triple)))
-		     list)))))
+  (in-list
+   (seq-list?
+    :minus
+    (many1* (sparql-triple)))))
 
 (defun sparql-where-graph ()
-  (transform
-   (lambda (list)
-     (and (listp list)
-	  (parse-sequence*
-	   (seq-list?
-	    :graph
-	    (item)
-	    (many1* (where-triple)))
-	   list)))))
+  (in-list
+   (seq-list?
+    :graph
+    (item)
+    (many1* (choices (where-triple)
+		     (delayed?
+		      (sparql-subselect)))))))
 
 (defun triples-block ()
-  (transform
-   (lambda (list)
-     (and (listp list)
-	  (parse-sequence*
-	   (many1* (sparql-triple))
-	   list)))))
+  (in-list
+   (many1* (sparql-triple))))
 
 (defun triple-subject ()
   (choice1 (sparql-var)
@@ -278,6 +281,15 @@
 	     ""))
    (loop for subterm in (cddr term)
       appending (expand subterm))))
+
+(defmethod expand-term ((type (eql :subselect)) term)
+  (append
+   (list "{ SELECT ")
+   (list (or (and (cadr term) "DISTINCT ")
+	     ""))
+   (loop for subterm in (cddr term)
+      appending (expand subterm))
+   (list " } ")))
 	
 (defmethod expand-term ((type (eql :vars)) vars)
   (let ((vars (rest vars)))
