@@ -6,7 +6,7 @@
 
 (defun sparql-compile (sparql)
   (let ((parsed
-	 (parse-sequence* (sparql-select)
+	 (parse-sequence* (sparql-parser)
 			  sparql)))
     (if (not parsed)
 	(error "Error parsing sparql")
@@ -17,7 +17,7 @@
 
 (defun sparql-eval (sparql)
   (let ((parsed
-	 (parse-sequence* (sparql-select)
+	 (parse-sequence* (sparql-parser)
 			  sparql)))
     (if (not parsed)
 	(error "Error parsing sparql")
@@ -78,6 +78,11 @@
      (and (listp x)
 	  (parse-sequence* parser x)))))
 
+(defun sparql-parser ()
+  (choices (sparql-select)
+	   (sparql-insert-data)
+	   (sparql-delete-data)))
+
 (defun sparql-select ()
   (named-seq?
    :select
@@ -98,6 +103,32 @@
 	 (apply #'list :vars vars)
 	 where
 	 (list :options options))))
+
+(defun sparql-insert-data ()
+  (named-seq?
+   :insert-data
+   (<- data (many1*
+	     (choices
+	      (in-list
+	       (seq-list?
+		:graph
+		(item)
+		(many1* (sparql-triple))))
+	      (sparql-triple))))
+   (list :insert-data data)))
+
+(defun sparql-delete-data ()
+  (named-seq?
+   :delete-data
+   (<- data (many1*
+	     (choices
+	      (in-list
+	       (seq-list?
+		:graph
+		(item)
+		(many1* (sparql-triple))))
+	      (sparql-triple))))
+   (list :delete-data data)))
 
 (defun sparql-subselect ()
   (named-seq?
@@ -281,6 +312,22 @@
 	     ""))
    (loop for subterm in (cddr term)
       appending (expand subterm))))
+
+(defmethod expand-term ((type (eql :insert-data)) term)
+  (append
+   (list "INSERT DATA { ")
+   (loop for cons on (cadr term)
+	appending (expand (car cons))
+      when (cdr cons) appending (list " . "))
+   (list " } ")))
+
+(defmethod expand-term ((type (eql :delete-data)) term)
+  (append
+   (list "DELETE DATA { ")
+   (loop for cons on (cadr term)
+	appending (expand (car cons))
+      when (cdr cons) appending (list " . "))
+   (list " } ")))
 
 (defmethod expand-term ((type (eql :subselect)) term)
   (append
