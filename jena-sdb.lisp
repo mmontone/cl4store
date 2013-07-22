@@ -47,8 +47,11 @@
   (jena-sdb-command "sdbconfig" "--dropIndexes"))
 
 (defun jena-sdb-query (query)
-  (tsv-to-lists
-   (jena-sdb-command "sdbquery" "--results" "TSV" (format nil "'~A'" query))))
+  (mapcar
+   (lambda (triple)
+     (mapcar #'parse-literal triple))
+   (tsv-to-lists
+    (jena-sdb-command "sdbquery" "--results" "TSV" (format nil "'~A'" query)))))
 
 (defun jena-sdb-sql (sql)
   (jena-sdb-command "sdbsql" sql))
