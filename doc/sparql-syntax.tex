@@ -1,0 +1,159 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel} 
+\usepackage{listings}
+
+\title{Soporte al nivel del lenguaje de programación para el desarrollo de aplicaciones en la web semántica}
+\author{
+        Mariano Montone \\
+        marianomontone@gmail.com \\
+        mmontone@github.com
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+En este informe presentamos algunas extensiones al nivel del lenguaje de programacion para el desarrollo de aplicaciones en la web semántica.
+\end{abstract}
+
+\section{Introducci\'on}
+\subsection{Lenguajes de programaci\'on y extensibilidad}
+
+\subsection{La web sem\'antica}
+
+Elementos de la web sem\'antica:
+\begin{itemize}
+\item URIs
+\item Literales
+\item SPARQL  
+\end{itemize}
+
+\section{Enfoque tradicional}
+
+Para URIs y manejo de literales, existen objetos apropiados. Por ejemplo, desarrollando en Java Jena, tanto URIs y literales son objetos de primer orden.
+
+Para la escritura de consultas SPARQL, el desarrollador puede optar por concatenar cadenas de caracteres. Por ejemplo:
+
+\begin{lstlisting}
+String queryString = "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>"
+		+ "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"
+		+ "PREFIX purl: <http://purl.org/dc/terms/>"
+		+ "PREFIX twss: <http://www.info.unlp.edu.ar/twss/>"
+		+ "PREFIX twssprop: <http://www.info.unlp.edu.ar/twss#>"
+		+ "SELECT ?p ?v WHERE { <" + loadUri + "> ?p ?v" + "}";}
+\end{lstlisting}	
+
+De todas formas, existen otras opciones, como usar ARQ.
+
+Otra alternativa, seria diseñar un DSL embebido. Algo como:
+
+\begin{lstlisting}
+Query query = ResourceCreator.createQuery().
+                     prefix(RDF.rdf).
+                     prefix(TWSS.twss).
+                     select("?p ?v").
+                     where({loadUri, "?p", "?v"});
+\end{lstlisting}		
+
+\section{Extensiones sint\'acticas}
+
+Ser\'ia interesante si fuese imposible integrar a nivel sint\'actico, especialmente la construcci\'on de consultas.
+
+\begin{lstlisting}
+Query query = SPARQL PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+		             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+		             PREFIX purl: <http://purl.org/dc/terms/>
+		             PREFIX twss: <http://www.info.unlp.edu.ar/twss/>
+		             PREFIX twssprop: <http://www.info.unlp.edu.ar/twss#>
+		             SELECT ?p ?v WHERE { loadUri ?p ?v }
+		      END SPARQL;
+\end{lstlisting}
+
+Esto es posible de hacer, pero es necesario implementar un preprocesador de c\'odigo que haga el parsing de la consulta.
+
+Resulta que los lenguajes de la familia Lisp son especialmente aptos para esto, por contener un preprocesador ''builtin'' en la forma de macros. 
+
+Mediante dos cosas: macros, que permiten hacer transformaciones de c\'odigo en tiempo de compilaci\'on; y la extensi\'on del lexer del ambiente. Utilizaremos el primero para implementar la integraci\'on de consultas SPARQL, y el segundo para el manejo literal de URIs. 
+
+\subsection{URIs literales}
+
+Por un lado, definimos los prefijos que bamos a utilizar en las URIs:
+
+\begin{lstlisting}
+(define-uri-prefix twss "http://www.info.unlp.edu.ar/twss")
+\end{lstlisting}
+
+Luego, podemos utilizarlos en nuestras URIs. La sintaxis literal para URIs tiene la siguiente forma:
+
+\begin{lstlisting}
+#<uri>
+\end{lstlisting}
+
+o
+
+\begin{lstlisting}
+#<prefix:uri>
+\end{lstlisting}
+
+Por ejemplo:
+
+\begin{lstlisting}
+#<http://www.info.unlp.edu.ar/twss/Person/22> 
+
+=> 
+
+#<PURI:URI http://www.info.unlp.edu.ar/twss/Person/22>
+\end{lstlisting}
+
+que es equivalente a:
+
+\begin{lstlisting}
+#<twss:/Person/22> 
+
+=> 
+
+#<PURI:URI http://www.info.unlp.edu.ar/twss/Person/22>
+\end{lstlisting}
+
+En los ejemplos anteriores,  \verb=#<PURI:URI http://www.info.unlp.edu.ar/twss/Person/22>= es el objeto resultante de aplicar la sintaxis literal, un objeto de tipo URI. Y el s\'imbolo \verb#=># indica el resultado de la evaluaci\'on.
+
+\subsection{Sintaxis para consultas SPARQL}
+
+A trav\'es de la macro \verb=sparql=:
+\begin{lstlisting}
+(sparql (:select ?x :where (?x ?y ?z)))
+\end{lstlisting}
+
+Es interesante que el lenguaje est\'a embebido correctamente, es posible acceder a las variables definidas afuera de forma esperada. Por ejemplo:
+
+\begin{lstlisting}
+(let ((value "hello"))
+	 (sparql (:select * :where (?x ?y value))))
+	 
+=> 
+
+"SELECT * WHERE { ?x ?y \"hello\"}"	 
+\end{lstlisting}
+
+Por \'ultimo, resulta \'util la combinaci\'on de URIs literales en las consultas SPARQL:
+
+\begin{lstlisting}
+(sparql (:select * :where (?x ?y ?z)
+      		(?x #<rdf:type> "MyType")))
+
+=>			
+
+"SELECT * WHERE { ?X ?Y ?Z . ?X <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> \"MyType\"}"
+\end{lstlisting}
+
+\section{Conclusiones}\label{conclusions}
+
+Si bien puede que estas extensiones no sean criticas y en verdad lenguajes como Java y el framework Jena hacen un buen manejo de recursos en aplicaciones en la web semantica, este trabajo sirve para explorar otras posibilidades.
+
+\bibliographystyle{abbrv}
+\bibliography{main}
+
+\end{document}
