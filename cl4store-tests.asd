@@ -7,4 +7,6 @@
     :depends-on (:cl4store
 		 :fiveam)
     :serial t
-    :components ((:file "test")))
+    :components ((:file "test"))
+    :perform (asdf:test-op (o c)
+			   (uiop:symbol-call :4store-test :run-tests)))

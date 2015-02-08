@@ -16,4 +16,5 @@
     :components ((:file "package")
 		 (:file "util")
 		 (:file "sparql")
-		 (:file "cl4store")))
+		 (:file "cl4store"))
+    :in-order-to ((asdf:test-op (asdf:test-op :cl4store-tests))))

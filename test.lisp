@@ -1,7 +1,11 @@
 (defpackage :4store-test
-  (:use :cl :4store :fiveam))
+  (:use :cl :4store :fiveam)
+  (:export #:run-tests))
 
 (in-package :4store-test)
+
+(defun run-tests ()
+  (run! '4store-test))
 
 (def-suite 4store-test)
 
@@ -95,5 +99,3 @@
 				(?x #<rdfs:label> ,value)
 				,@order-by)))
        "SELECT * WHERE { ?X <http://www.w3.org/2000/01/rdf-schema#label> \"Foo\"} ORDER BY ASC(?TIMESTAMP)")))
-
-(run! '4store-test)
