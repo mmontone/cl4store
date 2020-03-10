@@ -142,8 +142,9 @@
 	    collect char)))
     (parse-uri (coerce chars 'string))))
 
-(set-dispatch-macro-character
-  #\# #\< #'uri-reader)
+(defun enable-uri-syntax ()
+  (set-dispatch-macro-character
+   #\# #\< #'uri-reader))
 
 ;; Example
 ;; #<http://www.google.com>

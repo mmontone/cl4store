@@ -4,6 +4,8 @@
 
 (in-package :4store-test)
 
+#.(4store:enable-uri-syntax)
+
 (defun run-tests ()
   (run! '4store-test))
 
