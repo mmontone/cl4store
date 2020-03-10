@@ -1,11 +1,6 @@
 (defpackage :4store
-  (:use :cl :drakma :parser-combinators)
-  (:export sparql-query
-           sparql-query*
-           sparql
-           sparql-compile
-           sparql-eval
-           with-4store-server
+  (:use :cl :drakma :parser-combinators :sparql)
+  (:export with-4store-server
            with-graph
            get-triples-list
            get-graphs-list
@@ -18,12 +13,6 @@
            delete-graph
            *4store-server*
            *graph*
-           parse-literal
-           render-literal
-           make-uri
-           define-uri-prefix
-           get-uri-prefix
-           enable-uri-syntax
            ;; Subject to deprecation
            ;; - these may not belong here.
            sparql-server-status-request))

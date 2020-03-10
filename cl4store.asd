@@ -5,16 +5,10 @@
   :description "4store"
   :version "0.0.1"
   :depends-on (:drakma
-               :split-sequence
-               :cl-ppcre
-               :puri
                :cl-rdfxml
                :log5
-               :parser-combinators)
+               :cl-sparql)
   :serial t
   :components ((:file "package")
                (:file "util")
-               (:file "uri")
-               (:file "sparql")
-               (:file "cl4store"))
-  :in-order-to ((asdf:test-op (asdf:test-op :cl4store-tests))))
+               (:file "cl4store")))
